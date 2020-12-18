@@ -40,11 +40,11 @@ void update_display(float humidity, float temperature,
                     float humidity_difference) {
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(temperature, 2);
+  lcd.print(temperature, 1);
   lcd.print((char)0b11011111); // = "°"
   lcd.print("C");
   lcd.setCursor(0, 1);
-  lcd.print(humidity, 2);
+  lcd.print(humidity, 1);
   lcd.print("%rF=>");
   lcd.print(humidity_difference, 1);
 }
@@ -101,12 +101,9 @@ void loop() {
   static float temperature;
   static float humidity_difference;
 
-  temperature = 18.776;
-
   // Read sensor values:
   if (read_delay.delay_time_is_up(1000)) {
     humidity = dht.readHumidity();
-    // humidity = random(0, 99);
     temperature = dht.readTemperature();
   }
 
