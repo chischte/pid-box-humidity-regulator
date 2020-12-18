@@ -29,6 +29,7 @@ Insomnia log_delay;
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 // SENSOR ----------------------------------------------------------------------
+const int SENSOR_5V_PIN = 3;
 #define DHTPIN 2      // DHT sensor pin
 #define DHTTYPE DHT22 // DHT 22  (AM2302), AM2321
 DHT dht(DHTPIN, DHTTYPE);
@@ -37,6 +38,7 @@ DHT dht(DHTPIN, DHTTYPE);
 
 void update_display(float humidity, float temperature,
                     float humidity_difference) {
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(temperature, 2);
   lcd.print((char)0b11011111); // = "°"
@@ -50,45 +52,66 @@ void update_display(float humidity, float temperature,
 // -----------------------------------------------------------------------------
 
 float get_humidity_difference(float current_humidity) {
-  const int number_of_minute_logs = 5;
-  static float humidity_log[number_of_minute_logs];
+
   float humidity_difference;
 
-  if (log_delay.delay_time_is_up(60000)) {
-    // Move values one index back
-    for (int i = 0; i < (number_of_minute_logs - 2); i++) {
+  // Log configutation:
+  const int number_of_minutes = 5;
+  const int actualization_rate = 10; // [s]
+  const int number_of_values = number_of_minutes * 60 / actualization_rate;
+  const unsigned long delayTime = actualization_rate * 1000;
+
+  static float humidity_log[number_of_values];
+
+  if (log_delay.delay_time_is_up(delayTime)) {
+
+    // Move values one index back:
+    for (int i = 0; i < (number_of_values - 1); i++) {
       humidity_log[i] = humidity_log[i + 1];
     }
-    humidity_log[number_of_minute_logs] = current_humidity;
+
+    // Update latest value:
+    humidity_log[number_of_values - 1] = current_humidity;
     humidity_difference = current_humidity - humidity_log[0];
+
+    // Print for debugging:
+    for (int j = 0; j < number_of_values; j++) {
+      Serial.print(humidity_log[j]);
+      Serial.print("|");
+    }
+    Serial.println(" ");
   }
   return humidity_difference;
 }
 // SETUP ***********************************************************************
+
 void setup() {
   lcd.init();
   lcd.backlight();
   dht.begin();
+  pinMode(SENSOR_5V_PIN, OUTPUT);
+  digitalWrite(SENSOR_5V_PIN, HIGH);
+  Serial.begin(9600);
 }
 // LOOP ************************************************************************
+
 void loop() {
 
-  float humidity;
-  float temperature;
-  float humidity_difference;
+  static float humidity;
+  static float temperature;
+  static float humidity_difference;
+
+  temperature = 18.776;
 
   // Read sensor values:
   if (read_delay.delay_time_is_up(1000)) {
     humidity = dht.readHumidity();
+    // humidity = random(0, 99);
     temperature = dht.readTemperature();
   }
 
   // Log humidity and get humidity difference:
   humidity_difference = get_humidity_difference(humidity);
-
-  humidity = 77.665;
-  temperature = 18.776;
-  humidity_difference = -3.2;
 
   // Update Display:
   if (print_delay.delay_time_is_up(2000)) {
