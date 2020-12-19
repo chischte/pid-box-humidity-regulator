@@ -3,7 +3,8 @@
  * THERMO-HYGROMETER
  * *****************************************************************************
  * Reads temperature and humidity values from a sensor
- * Displays the values on an LCD Display
+ * Calculates the value by which humidity has changed in 5 minutes
+ * Displays the values on an LCD display
  * *****************************************************************************
  * Michael Wettstein
  * December 2020, Zürich
@@ -20,7 +21,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 
-// DELAYS ----------------------------------------------------------------------
+// NO SLEEP DELAYS -------------------------------------------------------------
 Insomnia print_delay;
 Insomnia read_delay;
 Insomnia log_delay;
@@ -30,7 +31,7 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 // SENSOR ----------------------------------------------------------------------
 const int SENSOR_5V_PIN = 3;
-#define DHTPIN 2      // DHT sensor pin
+#define DHTPIN 2      
 #define DHTTYPE DHT22 // DHT 22  (AM2302), AM2321
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -110,7 +111,7 @@ void loop() {
   // Log humidity and get humidity difference:
   humidity_difference = get_humidity_difference(humidity);
 
-  // Update Display:
+  // Update display:
   if (print_delay.delay_time_is_up(2000)) {
     update_display(humidity, temperature, humidity_difference);
   }
