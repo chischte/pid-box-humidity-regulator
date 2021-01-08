@@ -14,9 +14,20 @@
  * *****************************************************************************
  */
 
+// ENUM FOR OPERATION MODES ----------------------------------------------------
+enum Operation_mode {
+  standard = 0,
+  set_temperature = 1,
+  set_humidty = 2,
+  jump_back_to_standard = 3
+};
+Operation_mode operation_mode;
+
 // INCLUDES --------------------------------------------------------------------
 #include <Arduino.h>
 #include <DHT.h>
+#include <Debounce.h>
+#include <Encoder.h>
 #include <Insomnia.h>
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
@@ -26,19 +37,37 @@ Insomnia print_delay;
 Insomnia read_delay;
 Insomnia log_delay;
 
-// DISPLAY ---------------------------------------------------------------------
+// ROTARY ENCODER --------------------------------------------------------------
+Encoder myEnc(2, 3);
+const int ENCODER_5V_PIN = 4;
+const int ENCODER_S1 = 2;
+const int ENCODER_S2 = 3;
+const int ENCODER_PUSH = A0;
+
+// DEBOUNCE BUTTON -------------------------------------------------------------
+Debounce encoder_button(ENCODER_PUSH);
+
+// DISPLAY I2C------------------------------------------------------------------
+// SDA @ PIN A4
+// SCL @ PIN A5
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
-// SENSOR ----------------------------------------------------------------------
-const int SENSOR_5V_PIN = 3;
-#define DHTPIN 2      
-#define DHTTYPE DHT22 // DHT 22  (AM2302), AM2321
+// SENSOR AM2315
+// ---------------------------------------------------------------------- SDA @
+// PIN A4 SCL @ PIN A5
+#define DHTPIN                                                                 \
+  11 //......wrong PIN, AM2315 not implemented yet !!!  //......wrong PIN,
+     // AM2315 not implemented yet !!!  //......wrong PIN, AM2315 not
+     // implemented yet !!!
+#define DHTTYPE                                                                \
+  DHT22 // DHT 22  (AM2302), AM2321 //......wrong PIN, AM2315 not implemented
+        // yet !!!  //......wrong PIN, AM2315 not implemented yet !!!
 DHT dht(DHTPIN, DHTTYPE);
 
 // FUNCTIONS *******************************************************************
 
-void update_display(float humidity, float temperature,
-                    float humidity_difference) {
+void update_standard_display(float humidity, float temperature,
+                             float humidity_difference) {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(temperature, 1);
@@ -48,6 +77,18 @@ void update_display(float humidity, float temperature,
   lcd.print(humidity, 1);
   lcd.print("%rF=>");
   lcd.print(humidity_difference, 1);
+}
+
+void update_set_humidity_display() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("humidity");
+}
+
+void update_set_temperature_display() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("temperature");
 }
 
 // -----------------------------------------------------------------------------
@@ -90,13 +131,33 @@ void setup() {
   lcd.init();
   lcd.backlight();
   dht.begin();
-  pinMode(SENSOR_5V_PIN, OUTPUT);
-  digitalWrite(SENSOR_5V_PIN, HIGH);
+  pinMode(ENCODER_5V_PIN, OUTPUT);
+  // pinMode(ENCODER_PUSH, INPUT);
+  digitalWrite(ENCODER_5V_PIN, HIGH);
   Serial.begin(9600);
+  operation_mode = standard;
 }
 // LOOP ************************************************************************
 
+long oldPosition = -999;
+int current_mode = 0;
+
 void loop() {
+
+  if (encoder_button.switched_low()) {
+    Serial.println("Button Pushed");
+    current_mode++;
+    if (current_mode >= jump_back_to_standard) {
+      current_mode = 0;
+    }
+    Serial.println(current_mode);
+  }
+
+  long newPosition = myEnc.read();
+  if (newPosition != oldPosition) {
+    oldPosition = newPosition;
+    // Serial.println(newPosition);
+  }
 
   static float humidity;
   static float temperature;
@@ -111,8 +172,33 @@ void loop() {
   // Log humidity and get humidity difference:
   humidity_difference = get_humidity_difference(humidity);
 
-  // Update display:
-  if (print_delay.delay_time_is_up(2000)) {
-    update_display(humidity, temperature, humidity_difference);
+  switch (current_mode) {
+
+  case standard:
+    // Update display:
+    if (print_delay.delay_time_is_up(2000)) {
+      update_standard_display(humidity, temperature, humidity_difference);
+    }
+    break;
+
+  case set_temperature:
+    if (print_delay.delay_time_is_up(500)) {
+      update_set_temperature_display();
+    }
+    break;
+
+  case set_humidty:
+    if (print_delay.delay_time_is_up(500)) {
+      update_set_humidity_display();
+    }
+    break;
+
+  case jump_back_to_standard:
+    operation_mode = standard;
+    break;
+
+  default:
+    operation_mode = standard;
+    break;
   }
 }
