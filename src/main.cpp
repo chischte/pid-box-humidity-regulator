@@ -12,14 +12,18 @@
  * SENSOR:  DHT22
  * DISPLAY: 1602 LCD Display Module
  * *****************************************************************************
+ * TODO:
+ * IMPLEMENT set of target values
+ * 
+ * *****************************************************************************
  */
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
 enum Operation_mode {
   standard = 0,
   set_temperature = 1,
-  set_humidty = 2,
-  jump_back_to_standard = 3
+  set_humidty = 2//,
+  // jump_back_to_standard = 3
 };
 Operation_mode operation_mode;
 
@@ -145,11 +149,11 @@ int current_mode = 0;
 void loop() {
 
   if (encoder_button.switched_low()) {
-    Serial.println("Button Pushed");
+    // Serial.println("Button Pushed");
     current_mode++;
-    if (current_mode >= jump_back_to_standard) {
-      current_mode = 0;
-    }
+    //  if (current_mode >= jump_back_to_standard) {
+    // current_mode = 0;
+    // }
     Serial.println(current_mode);
   }
 
@@ -193,11 +197,11 @@ void loop() {
     }
     break;
 
-  case jump_back_to_standard:
-    operation_mode = standard;
-    break;
+  // case jump_back_to_standard:
+  //   operation_mode = standard;
+  //   break;
 
-  default:
+  default: // jump back to standard
     operation_mode = standard;
     break;
   }
