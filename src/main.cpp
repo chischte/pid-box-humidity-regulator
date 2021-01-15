@@ -5,23 +5,27 @@
  * Reads temperature and humidity values from a sensor
  * Calculates the value by which humidity has changed in 5 minutes
  * Displays the values on an LCD display
+ * Controlls the temperature inside a box using a two point controller.
+ * Controlls the humidity inside the box regulating the temperature of the
+ * air supplied, using a PID regulation algorithm.
  * *****************************************************************************
  * Michael Wettstein
- * December 2020, Zürich
+ * January 2020, Zürich
  * *****************************************************************************
- * SENSOR:  DHT22
+ * SENSOR:  AM2315
  * DISPLAY: 1602 LCD Display Module
- * *****************************************************************************
- * TODO:
- * IMPLEMENT set of target values
- *
+ * ROTARY ENCODER
  * *****************************************************************************
  */
 
 // GLOBAL VARIABLES ------------------------------------------------------------
 bool display_refreshed = false;
+float humidity;
 float humidity_setpoint;
+float delta_rH_in_5_mins;
+float temperature;
 float temperature_setpoint;
+
 static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
@@ -29,6 +33,7 @@ enum Operation_mode {
   standard = 0,
   set_temperature = 1,
   set_humidty = 2,
+  number_of_modes = 3
 };
 Operation_mode operation_mode;
 
@@ -43,8 +48,8 @@ Operation_mode operation_mode;
 #include <Wire.h>
 
 // NO SLEEP DELAYS -------------------------------------------------------------
-Insomnia print_delay;
 Insomnia read_delay;
+Insomnia heater_pwm_duration;
 Insomnia log_delay;
 
 // EEPROM STORAGE --------------------------------------------------------------
@@ -84,41 +89,6 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 DHT dht(DHTPIN, DHTTYPE);
 
 // FUNCTIONS *******************************************************************
-
-void update_standard_display(float humidity, float temperature,
-                             float humidity_difference) {
-
-  static float prev_humidity = humidity;
-  static float prev_temperature = temperature;
-  static float prev_humidity_difference = humidity_difference;
-
-  if (humidity != prev_humidity) {
-    display_refreshed = false;
-    prev_humidity = humidity;
-  }
-  if (temperature != prev_temperature) {
-    display_refreshed = false;
-    prev_temperature = temperature;
-  }
-  if (humidity_difference != prev_humidity_difference) {
-    display_refreshed = false;
-    prev_humidity_difference = humidity_difference;
-  }
-
-  if (!display_refreshed) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(temperature, 1);
-    lcd.print((char)0b11011111); // = "°"
-    lcd.print("C");
-    lcd.setCursor(0, 1);
-    lcd.print(humidity, 1);
-    lcd.print("%rF=>");
-    lcd.print(humidity_difference, 1);
-    display_refreshed = true;
-  }
-}
-
 float limit(float value, float min, float max) {
   if (value < min) {
     value = min;
@@ -129,7 +99,44 @@ float limit(float value, float min, float max) {
   return value;
 }
 
-float update_set_humidity_display(float humidity_setpoint) {
+void monitor_changed_values_standard_display() {
+
+  static float prev_humidity = humidity;
+  static float prev_temperature = temperature;
+  static float prev_humidity_difference = delta_rH_in_5_mins;
+
+  if (humidity != prev_humidity) {
+    display_refreshed = false;
+    prev_humidity = humidity;
+  }
+  if (temperature != prev_temperature) {
+    display_refreshed = false;
+    prev_temperature = temperature;
+  }
+  if (delta_rH_in_5_mins != prev_humidity_difference) {
+    display_refreshed = false;
+    prev_humidity_difference = delta_rH_in_5_mins;
+  }
+}
+
+void update_standard_display() {
+  monitor_changed_values_standard_display();
+
+  if (!display_refreshed) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(temperature, 1);
+    lcd.print((char)0b11011111); // = "°"
+    lcd.print("C");
+    lcd.setCursor(0, 1);
+    lcd.print(humidity, 1);
+    lcd.print("%rF=>");
+    lcd.print(delta_rH_in_5_mins, 1);
+    display_refreshed = true;
+  }
+}
+
+void monitor_changed_values_humidity_display() {
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
@@ -148,7 +155,10 @@ float update_set_humidity_display(float humidity_setpoint) {
     eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
     humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
+}
 
+void update_set_humidity_display() {
+  monitor_changed_values_humidity_display();
   if (!display_refreshed) {
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -158,10 +168,9 @@ float update_set_humidity_display(float humidity_setpoint) {
     lcd.print("%rF");
     display_refreshed = true;
   }
-  return humidity_setpoint;
 }
 
-float update_set_temperature_display(float temperature_setpoint) {
+void monitor_changed_values_temperature_display() {
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
@@ -180,7 +189,10 @@ float update_set_temperature_display(float temperature_setpoint) {
     eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
+}
 
+void update_set_temperature_display() {
+  monitor_changed_values_temperature_display();
   if (!display_refreshed) {
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -190,18 +202,10 @@ float update_set_temperature_display(float temperature_setpoint) {
     lcd.print((char)0b11011111); // = "°"
     lcd.print("C");
     display_refreshed = true;
-
-    display_refreshed = true;
   }
-
-  return temperature_setpoint;
 }
 
-// -----------------------------------------------------------------------------
-
-float get_humidity_difference(float current_humidity) {
-
-  float humidity_difference;
+void calculate_delta_rH_in_5_mins() {
 
   // Log configutation:
   const int number_of_minutes = 5;
@@ -218,11 +222,111 @@ float get_humidity_difference(float current_humidity) {
       humidity_log[i] = humidity_log[i + 1];
     }
     // Update latest value:
-    humidity_log[number_of_values - 1] = current_humidity;
-    humidity_difference = current_humidity - humidity_log[0];
+    humidity_log[number_of_values - 1] = humidity;
+    delta_rH_in_5_mins = humidity - humidity_log[0];
   }
-  return humidity_difference;
 }
+
+void read_sensor_values() {
+  if (read_delay.delay_time_is_up(1000)) {
+    humidity = dht.readHumidity();
+    temperature = dht.readTemperature();
+  }
+}
+
+int monitor_encoder_button(int current_mode) {
+  if (encoder_button.switched_low()) {
+    display_refreshed = false;
+    current_mode++;
+  }
+  if (current_mode >= number_of_modes) {
+    current_mode = 0;
+  }
+  return current_mode;
+}
+
+void display_current_mode(int current_mode) {
+  switch (current_mode) {
+
+  case standard:
+    update_standard_display();
+    break;
+
+  case set_temperature:
+    update_set_temperature_display();
+    break;
+
+  case set_humidty:
+    update_set_humidity_display();
+    break;
+  }
+}
+
+void switch_box_heating() {
+  if (temperature < set_temperature) {
+    // heat on
+  } else {
+    // heat off
+  }
+}
+
+float calculate_p() {
+  // p should be at 100% if humidity is 10%rH below setpoint
+  float delta_humidity = humidity_setpoint - humidity;
+  float humidity_diference_for_full_reaction = 10; //[%rH]
+  float p = 100 * delta_humidity / humidity_diference_for_full_reaction;
+  p = limit(p, -100, 100);
+  return p;
+}
+
+float calculate_i() {
+  // i should go 1% up every minute humidity is 1% below setpoint
+  static unsigned long previous_time = micros();
+  unsigned long new_time = micros();
+  unsigned long delta_t = new_time - previous_time;
+  previous_time = new_time;
+  float delta_humidity = humidity_setpoint - humidity;
+  float micros_per_minute = 1000.f * 1000.f * 60.f;
+  static float i = 0;
+  i += delta_humidity * delta_t / micros_per_minute;
+  i = limit(i, -100, 100);
+  return i;
+}
+
+float calculate_d() {
+  // d should be at -100% if humidity is rising at 0.5% in 5 minutes
+  float rH_difference_for_full_reaction = 0.5; //[%rh/5minutes]
+  float d = -100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
+  d = limit(d, -100, 100);
+  return d;
+}
+
+float calculate_pid_water_heater() {
+
+  float p = calculate_p();
+
+  float i = calculate_i();
+
+  float d = calculate_d();
+
+  float pid = p + i + d;
+  pid = limit(pid, 0, 100);
+
+  return pid; // [0-100%]
+}
+
+void switch_water_heater(float water_heating_power) {
+  unsigned long pwm_cycle_duration = 10000; // =10s
+  unsigned long on_time = pwm_cycle_duration * (water_heating_power / 100);
+
+  heater_pwm_duration.delay_time_is_up(pwm_cycle_duration);
+  if (heater_pwm_duration.get_remaining_delay_time() < on_time) {
+    // heat
+  } else {
+    // do not heat
+  }
+}
+
 // SETUP ***********************************************************************
 
 void setup() {
@@ -234,48 +338,27 @@ void setup() {
   dht.begin();
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
-  Serial.begin(9600);
   operation_mode = standard;
+  Serial.begin(9600);
+  Serial.println("EXIT SETUP");
 }
 // LOOP ************************************************************************
 
 void loop() {
+
+  read_sensor_values();
+
+  // Toggle display modes:
   static int current_mode = 0;
-
-  if (encoder_button.switched_low()) {
-    display_refreshed = false;
-    current_mode++;
-  }
-
-  static float humidity;
-  static float temperature;
-  static float humidity_difference;
-
-  // Read sensor values:
-  if (read_delay.delay_time_is_up(1000)) {
-    humidity = dht.readHumidity();
-    temperature = dht.readTemperature();
-  }
+  current_mode = monitor_encoder_button(current_mode);
+  display_current_mode(current_mode);
 
   // Log humidity and get humidity difference:
-  humidity_difference = get_humidity_difference(humidity);
+  calculate_delta_rH_in_5_mins();
 
-  switch (current_mode) {
+  switch_box_heating();
 
-  case standard:
-    update_standard_display(humidity, temperature, humidity_difference);
-    break;
+  float water_heating_power = calculate_pid_water_heater();
 
-  case set_temperature:
-    temperature_setpoint = update_set_temperature_display(temperature_setpoint);
-    break;
-
-  case set_humidty:
-    humidity_setpoint = update_set_humidity_display(humidity_setpoint);
-    break;
-
-  default: // jump back to standard
-    current_mode = standard;
-    break;
-  }
+  switch_water_heater(water_heating_power);
 }
