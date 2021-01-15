@@ -4,3 +4,6 @@
 [submodule "lib/debounce-library"]
 	path = lib/debounce-library
 	url = https://github.com/chischte/debounce-library.git
+[submodule "lib/eeprom-counter-library"]
+	path = lib/eeprom-counter-library
+	url = https://github.com/chischte/eeprom-counter-library.git
