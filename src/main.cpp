@@ -18,6 +18,9 @@
  * *****************************************************************************
  */
 
+// GLOBAL VARIABLE TO MANAGE DISPLAY REFRESH -----------------------------------
+bool display_refreshed = false;
+
 // ENUM FOR OPERATION MODES ----------------------------------------------------
 enum Operation_mode {
   standard = 0,
@@ -71,15 +74,46 @@ DHT dht(DHTPIN, DHTTYPE);
 
 void update_standard_display(float humidity, float temperature,
                              float humidity_difference) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(temperature, 1);
-  lcd.print((char)0b11011111); // = "°"
-  lcd.print("C");
-  lcd.setCursor(0, 1);
-  lcd.print(humidity, 1);
-  lcd.print("%rF=>");
-  lcd.print(humidity_difference, 1);
+
+  static float prev_humidity = humidity;
+  static float prev_temperature = temperature;
+  static float prev_humidity_difference = humidity_difference;
+
+  if (humidity != prev_humidity) {
+    display_refreshed = false;
+    prev_humidity = humidity;
+  }
+  if (temperature != prev_temperature) {
+    display_refreshed = false;
+    prev_temperature = temperature;
+  }
+  if (humidity_difference != prev_humidity_difference) {
+    display_refreshed = false;
+    prev_humidity_difference = humidity_difference;
+  }
+
+  if (!display_refreshed) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(temperature, 1);
+    lcd.print((char)0b11011111); // = "°"
+    lcd.print("C");
+    lcd.setCursor(0, 1);
+    lcd.print(humidity, 1);
+    lcd.print("%rF=>");
+    lcd.print(humidity_difference, 1);
+    display_refreshed = true;
+  }
+}
+
+float limit(float value, float min, float max) {
+  if (value < min) {
+    value = min;
+  }
+  if (value > max) {
+    value = max;
+  }
+  return value;
 }
 
 float update_set_humidity_display(float humidity_setpoint) {
@@ -87,24 +121,53 @@ float update_set_humidity_display(float humidity_setpoint) {
   long current_position = encoder.read();
 
   if (prev_position != current_position) {
+    display_refreshed = false;
     long encoder_difference = current_position - prev_position;
     prev_position = current_position;
     humidity_setpoint += float(encoder_difference) / 40;
-    Serial.println(humidity_setpoint, 1);
+    humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("humidity set:");
-  lcd.setCursor(0, 1);
-  lcd.print(humidity_setpoint,1);
+  if (!display_refreshed) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("humidity set:");
+    lcd.setCursor(0, 1);
+    lcd.print(humidity_setpoint, 1);
+    lcd.print("%rF");
+    display_refreshed = true;
+  }
   return humidity_setpoint;
 }
 
-void update_set_temperature_display() {
+float update_set_temperature_display(float temperature_setpoint) {
+
+ static long prev_position = 0;
+  long current_position = encoder.read();
+
+  if (prev_position != current_position) {
+    display_refreshed = false;
+    long encoder_difference = current_position - prev_position;
+    prev_position = current_position;
+    temperature_setpoint += float(encoder_difference) / 40;
+    temperature_setpoint = limit(temperature_setpoint, 18, 35);
+  }
+
+
+if (!display_refreshed) {
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("temperature");
+  lcd.print("temperature set:");
+  lcd.setCursor(0, 1);
+    lcd.print(temperature_setpoint, 1);
+    lcd.print((char)0b11011111); // = "°"
+    lcd.print("C");
+    display_refreshed = true;
+
+    display_refreshed = true;
+  }
+
+  return temperature_setpoint;
 }
 
 // -----------------------------------------------------------------------------
@@ -146,21 +209,15 @@ void setup() {
 }
 // LOOP ************************************************************************
 
-long oldPosition = -999;
-int current_mode = 0;
-
 void loop() {
+  static int current_mode = 0;
 
   static float humidity_setpoint = 0;
+  static float temperature_setpoint = 0;
 
   if (encoder_button.switched_low()) {
+    display_refreshed = false;
     current_mode++;
-  }
-
-  long newPosition = encoder.read();
-  if (newPosition != oldPosition) {
-    oldPosition = newPosition;
-    Serial.println(newPosition);
   }
 
   static float humidity;
@@ -179,21 +236,17 @@ void loop() {
   switch (current_mode) {
 
   case standard:
-    // Update display:
-    if (print_delay.delay_time_is_up(2000)) {
-      update_standard_display(humidity, temperature, humidity_difference);
-    }
+    update_standard_display(humidity, temperature, humidity_difference);
     break;
+
   case set_temperature:
-    if (print_delay.delay_time_is_up(500)) {
-      update_set_temperature_display();
-    }
+    temperature_setpoint = update_set_temperature_display(temperature_setpoint);
     break;
+
   case set_humidty:
-    if (print_delay.delay_time_is_up(500)) {
-      humidity_setpoint = update_set_humidity_display(humidity_setpoint);
-    }
+    humidity_setpoint = update_set_humidity_display(humidity_setpoint);
     break;
+
   default: // jump back to standard
     current_mode = standard;
     break;
