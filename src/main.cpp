@@ -18,8 +18,11 @@
  * *****************************************************************************
  */
 
-// GLOBAL VARIABLE TO MANAGE DISPLAY REFRESH -----------------------------------
+// GLOBAL VARIABLES ------------------------------------------------------------
 bool display_refreshed = false;
+float humidity_setpoint;
+float temperature_setpoint;
+static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
 enum Operation_mode {
@@ -33,6 +36,7 @@ Operation_mode operation_mode;
 #include <Arduino.h>
 #include <DHT.h>
 #include <Debounce.h>
+#include <EEPROM_Counter.h>
 #include <Encoder.h>
 #include <Insomnia.h>
 #include <LiquidCrystal_I2C.h>
@@ -42,6 +46,15 @@ Operation_mode operation_mode;
 Insomnia print_delay;
 Insomnia read_delay;
 Insomnia log_delay;
+
+// EEPROM STORAGE --------------------------------------------------------------
+EEPROM_Counter eeprom_storage;
+
+int eepromMinAddress = 0;
+int eepromMaxAddress = 1000; // EEPROM size Arduino Nano/Uno: 1024 bytes
+
+enum counter { eeprom_temp, eeprom_humidity, endOfEnum };
+int numberOfValues = endOfEnum;
 
 // ROTARY ENCODER --------------------------------------------------------------
 Encoder encoder(2, 3);
@@ -117,21 +130,22 @@ float limit(float value, float min, float max) {
 }
 
 float update_set_humidity_display(float humidity_setpoint) {
-  static long prev_position = 0;
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
-  if (current_position - prev_position >= encoder_klicks) {
+  if (current_position - encoder_prev_position >= encoder_klicks) {
     display_refreshed = false;
-    prev_position = current_position;
+    encoder_prev_position = current_position;
     humidity_setpoint++;
+    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
     humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
 
-  if (prev_position - current_position >= encoder_klicks) {
+  if (encoder_prev_position - current_position >= encoder_klicks) {
     display_refreshed = false;
-    prev_position = current_position;
+    encoder_prev_position = current_position;
     humidity_setpoint--;
+    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
     humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
 
@@ -148,21 +162,22 @@ float update_set_humidity_display(float humidity_setpoint) {
 }
 
 float update_set_temperature_display(float temperature_setpoint) {
-  static long prev_position = 0;
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
-  if (current_position - prev_position >= encoder_klicks) {
+  if (current_position - encoder_prev_position >= encoder_klicks) {
     display_refreshed = false;
-    prev_position = current_position;
+    encoder_prev_position = current_position;
     temperature_setpoint++;
+    eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
 
-  if (prev_position - current_position >= encoder_klicks) {
+  if (encoder_prev_position - current_position >= encoder_klicks) {
     display_refreshed = false;
-    prev_position = current_position;
+    encoder_prev_position = current_position;
     temperature_setpoint--;
+    eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
 
@@ -211,6 +226,9 @@ float get_humidity_difference(float current_humidity) {
 // SETUP ***********************************************************************
 
 void setup() {
+  eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
+  temperature_setpoint = float(eeprom_storage.get_value(eeprom_temp));
+  humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
   lcd.init();
   lcd.backlight();
   dht.begin();
@@ -223,9 +241,6 @@ void setup() {
 
 void loop() {
   static int current_mode = 0;
-
-  static float humidity_setpoint = 0;
-  static float temperature_setpoint = 0;
 
   if (encoder_button.switched_low()) {
     display_refreshed = false;
