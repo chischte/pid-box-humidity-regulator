@@ -14,7 +14,7 @@
  * *****************************************************************************
  * TODO:
  * IMPLEMENT set of target values
- * 
+ *
  * *****************************************************************************
  */
 
@@ -22,8 +22,7 @@
 enum Operation_mode {
   standard = 0,
   set_temperature = 1,
-  set_humidty = 2//,
-  // jump_back_to_standard = 3
+  set_humidty = 2,
 };
 Operation_mode operation_mode;
 
@@ -42,7 +41,7 @@ Insomnia read_delay;
 Insomnia log_delay;
 
 // ROTARY ENCODER --------------------------------------------------------------
-Encoder myEnc(2, 3);
+Encoder encoder(2, 3);
 const int ENCODER_5V_PIN = 4;
 const int ENCODER_S1 = 2;
 const int ENCODER_S2 = 3;
@@ -83,10 +82,23 @@ void update_standard_display(float humidity, float temperature,
   lcd.print(humidity_difference, 1);
 }
 
-void update_set_humidity_display() {
+float update_set_humidity_display(float humidity_setpoint) {
+  static long prev_position = 0;
+  long current_position = encoder.read();
+
+  if (prev_position != current_position) {
+    long encoder_difference = current_position - prev_position;
+    prev_position = current_position;
+    humidity_setpoint += float(encoder_difference) / 40;
+    Serial.println(humidity_setpoint, 1);
+  }
+
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("humidity");
+  lcd.print("humidity set:");
+  lcd.setCursor(0, 1);
+  lcd.print(humidity_setpoint,1);
+  return humidity_setpoint;
 }
 
 void update_set_temperature_display() {
@@ -115,17 +127,9 @@ float get_humidity_difference(float current_humidity) {
     for (int i = 0; i < (number_of_values - 1); i++) {
       humidity_log[i] = humidity_log[i + 1];
     }
-
     // Update latest value:
     humidity_log[number_of_values - 1] = current_humidity;
     humidity_difference = current_humidity - humidity_log[0];
-
-    // Print for debugging:
-    for (int j = 0; j < number_of_values; j++) {
-      Serial.print(humidity_log[j]);
-      Serial.print("|");
-    }
-    Serial.println(" ");
   }
   return humidity_difference;
 }
@@ -136,7 +140,6 @@ void setup() {
   lcd.backlight();
   dht.begin();
   pinMode(ENCODER_5V_PIN, OUTPUT);
-  // pinMode(ENCODER_PUSH, INPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
   Serial.begin(9600);
   operation_mode = standard;
@@ -148,19 +151,16 @@ int current_mode = 0;
 
 void loop() {
 
+  static float humidity_setpoint = 0;
+
   if (encoder_button.switched_low()) {
-    // Serial.println("Button Pushed");
     current_mode++;
-    //  if (current_mode >= jump_back_to_standard) {
-    // current_mode = 0;
-    // }
-    Serial.println(current_mode);
   }
 
-  long newPosition = myEnc.read();
+  long newPosition = encoder.read();
   if (newPosition != oldPosition) {
     oldPosition = newPosition;
-    // Serial.println(newPosition);
+    Serial.println(newPosition);
   }
 
   static float humidity;
@@ -184,25 +184,18 @@ void loop() {
       update_standard_display(humidity, temperature, humidity_difference);
     }
     break;
-
   case set_temperature:
     if (print_delay.delay_time_is_up(500)) {
       update_set_temperature_display();
     }
     break;
-
   case set_humidty:
     if (print_delay.delay_time_is_up(500)) {
-      update_set_humidity_display();
+      humidity_setpoint = update_set_humidity_display(humidity_setpoint);
     }
     break;
-
-  // case jump_back_to_standard:
-  //   operation_mode = standard;
-  //   break;
-
   default: // jump back to standard
-    operation_mode = standard;
+    current_mode = standard;
     break;
   }
 }
