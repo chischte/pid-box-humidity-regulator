@@ -119,12 +119,19 @@ float limit(float value, float min, float max) {
 float update_set_humidity_display(float humidity_setpoint) {
   static long prev_position = 0;
   long current_position = encoder.read();
+  static int encoder_klicks = 4;
 
-  if (prev_position != current_position) {
+  if (current_position - prev_position >= encoder_klicks) {
     display_refreshed = false;
-    long encoder_difference = current_position - prev_position;
     prev_position = current_position;
-    humidity_setpoint += float(encoder_difference) / 40;
+    humidity_setpoint++;
+    humidity_setpoint = limit(humidity_setpoint, 75, 99);
+  }
+
+  if (prev_position - current_position >= encoder_klicks) {
+    display_refreshed = false;
+    prev_position = current_position;
+    humidity_setpoint--;
     humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
 
@@ -133,7 +140,7 @@ float update_set_humidity_display(float humidity_setpoint) {
     lcd.setCursor(0, 0);
     lcd.print("humidity set:");
     lcd.setCursor(0, 1);
-    lcd.print(humidity_setpoint, 1);
+    lcd.print(humidity_setpoint, 0);
     lcd.print("%rF");
     display_refreshed = true;
   }
@@ -141,25 +148,30 @@ float update_set_humidity_display(float humidity_setpoint) {
 }
 
 float update_set_temperature_display(float temperature_setpoint) {
-
- static long prev_position = 0;
+  static long prev_position = 0;
   long current_position = encoder.read();
+  static int encoder_klicks = 4;
 
-  if (prev_position != current_position) {
+  if (current_position - prev_position >= encoder_klicks) {
     display_refreshed = false;
-    long encoder_difference = current_position - prev_position;
     prev_position = current_position;
-    temperature_setpoint += float(encoder_difference) / 40;
+    temperature_setpoint++;
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
 
+  if (prev_position - current_position >= encoder_klicks) {
+    display_refreshed = false;
+    prev_position = current_position;
+    temperature_setpoint--;
+    temperature_setpoint = limit(temperature_setpoint, 18, 35);
+  }
 
-if (!display_refreshed) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("temperature set:");
-  lcd.setCursor(0, 1);
-    lcd.print(temperature_setpoint, 1);
+  if (!display_refreshed) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("temperature set:");
+    lcd.setCursor(0, 1);
+    lcd.print(temperature_setpoint, 0);
     lcd.print((char)0b11011111); // = "°"
     lcd.print("C");
     display_refreshed = true;
