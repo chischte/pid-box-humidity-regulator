@@ -29,7 +29,8 @@ float temperature_setpoint;
 static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
-enum Operation_mode {
+enum Operation_mode
+{
   standard = 0,
   set_temperature = 1,
   set_humidty = 2,
@@ -45,6 +46,7 @@ Operation_mode operation_mode;
 #include <Encoder.h>
 #include <Insomnia.h>
 #include <LiquidCrystal_I2C.h>
+#include <Adafruit_AM2315.h>
 #include <Wire.h>
 
 // NO SLEEP DELAYS -------------------------------------------------------------
@@ -58,7 +60,12 @@ EEPROM_Counter eeprom_storage;
 int eepromMinAddress = 0;
 int eepromMaxAddress = 1000; // EEPROM size Arduino Nano/Uno: 1024 bytes
 
-enum counter { eeprom_temp, eeprom_humidity, endOfEnum };
+enum counter
+{
+  eeprom_temp,
+  eeprom_humidity,
+  endOfEnum
+};
 int numberOfValues = endOfEnum;
 
 // ROTARY ENCODER --------------------------------------------------------------
@@ -76,53 +83,54 @@ Debounce encoder_button(ENCODER_PUSH);
 // SCL @ PIN A5
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
-// SENSOR AM2315
-// ---------------------------------------------------------------------- SDA @
-// PIN A4 SCL @ PIN A5
-#define DHTPIN                                                                 \
-  11 //......wrong PIN, AM2315 not implemented yet !!!  //......wrong PIN,
-     // AM2315 not implemented yet !!!  //......wrong PIN, AM2315 not
-     // implemented yet !!!
-#define DHTTYPE                                                                \
-  DHT22 // DHT 22  (AM2302), AM2321 //......wrong PIN, AM2315 not implemented
-        // yet !!!  //......wrong PIN, AM2315 not implemented yet !!!
-DHT dht(DHTPIN, DHTTYPE);
+// SENSOR AM2315 ---------------------------------------------------------------
+// SDA @ PIN A4 // SCL @ PIN A5
+Adafruit_AM2315 am2315;
 
 // FUNCTIONS *******************************************************************
-float limit(float value, float min, float max) {
-  if (value < min) {
+float limit(float value, float min, float max)
+{
+  if (value < min)
+  {
     value = min;
   }
-  if (value > max) {
+  if (value > max)
+  {
     value = max;
   }
   return value;
 }
 
-void monitor_changed_values_standard_display() {
+void monitor_changed_values_standard_display()
+{
 
   static float prev_humidity = humidity;
   static float prev_temperature = temperature;
   static float prev_humidity_difference = delta_rH_in_5_mins;
 
-  if (humidity != prev_humidity) {
+  if (humidity != prev_humidity)
+  {
     display_refreshed = false;
     prev_humidity = humidity;
   }
-  if (temperature != prev_temperature) {
+  if (temperature != prev_temperature)
+  {
     display_refreshed = false;
     prev_temperature = temperature;
   }
-  if (delta_rH_in_5_mins != prev_humidity_difference) {
+  if (delta_rH_in_5_mins != prev_humidity_difference)
+  {
     display_refreshed = false;
     prev_humidity_difference = delta_rH_in_5_mins;
   }
 }
 
-void update_standard_display() {
+void update_standard_display()
+{
   monitor_changed_values_standard_display();
 
-  if (!display_refreshed) {
+  if (!display_refreshed)
+  {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(temperature, 1);
@@ -136,11 +144,13 @@ void update_standard_display() {
   }
 }
 
-void monitor_changed_values_humidity_display() {
+void monitor_changed_values_humidity_display()
+{
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
-  if (current_position - encoder_prev_position >= encoder_klicks) {
+  if (current_position - encoder_prev_position >= encoder_klicks)
+  {
     display_refreshed = false;
     encoder_prev_position = current_position;
     humidity_setpoint++;
@@ -148,7 +158,8 @@ void monitor_changed_values_humidity_display() {
     humidity_setpoint = limit(humidity_setpoint, 75, 99);
   }
 
-  if (encoder_prev_position - current_position >= encoder_klicks) {
+  if (encoder_prev_position - current_position >= encoder_klicks)
+  {
     display_refreshed = false;
     encoder_prev_position = current_position;
     humidity_setpoint--;
@@ -157,9 +168,11 @@ void monitor_changed_values_humidity_display() {
   }
 }
 
-void update_set_humidity_display() {
+void update_set_humidity_display()
+{
   monitor_changed_values_humidity_display();
-  if (!display_refreshed) {
+  if (!display_refreshed)
+  {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("humidity set:");
@@ -170,11 +183,13 @@ void update_set_humidity_display() {
   }
 }
 
-void monitor_changed_values_temperature_display() {
+void monitor_changed_values_temperature_display()
+{
   long current_position = encoder.read();
   static int encoder_klicks = 4;
 
-  if (current_position - encoder_prev_position >= encoder_klicks) {
+  if (current_position - encoder_prev_position >= encoder_klicks)
+  {
     display_refreshed = false;
     encoder_prev_position = current_position;
     temperature_setpoint++;
@@ -182,7 +197,8 @@ void monitor_changed_values_temperature_display() {
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
 
-  if (encoder_prev_position - current_position >= encoder_klicks) {
+  if (encoder_prev_position - current_position >= encoder_klicks)
+  {
     display_refreshed = false;
     encoder_prev_position = current_position;
     temperature_setpoint--;
@@ -191,9 +207,11 @@ void monitor_changed_values_temperature_display() {
   }
 }
 
-void update_set_temperature_display() {
+void update_set_temperature_display()
+{
   monitor_changed_values_temperature_display();
-  if (!display_refreshed) {
+  if (!display_refreshed)
+  {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("temperature set:");
@@ -205,7 +223,8 @@ void update_set_temperature_display() {
   }
 }
 
-void calculate_delta_rH_in_5_mins() {
+void calculate_delta_rH_in_5_mins()
+{
 
   // Log configutation:
   const int number_of_minutes = 5;
@@ -215,38 +234,59 @@ void calculate_delta_rH_in_5_mins() {
 
   static float humidity_log[number_of_values];
 
-  if (log_delay.delay_time_is_up(delayTime)) {
+  if (log_delay.delay_time_is_up(delayTime))
+  {
 
     // Move values one index back:
-    for (int i = 0; i < (number_of_values - 1); i++) {
+    for (int i = 0; i < (number_of_values - 1); i++)
+    {
       humidity_log[i] = humidity_log[i + 1];
     }
     // Update latest value:
     humidity_log[number_of_values - 1] = humidity;
-    delta_rH_in_5_mins = humidity - humidity_log[0];
+    if (humidity_log[0] != 0)
+    {
+      delta_rH_in_5_mins = humidity - humidity_log[0];
+    }
+    else
+    {
+      delta_rH_in_5_mins = 0;
+    }
   }
 }
 
-void read_sensor_values() {
-  if (read_delay.delay_time_is_up(1000)) {
-    humidity = dht.readHumidity();
-    temperature = dht.readTemperature();
+void read_sensor_values()
+{
+  if (read_delay.delay_time_is_up(1000))
+  {
+    // humidity = dht.readHumidity();
+    // temperature = dht.readTemperature();
+    if (!am2315.readTemperatureAndHumidity(&temperature, &humidity))
+    {
+      Serial.println("Failed to read data from AM2315");
+      return;
+    }
   }
 }
 
-int monitor_encoder_button(int current_mode) {
-  if (encoder_button.switched_low()) {
+int monitor_encoder_button(int current_mode)
+{
+  if (encoder_button.switched_low())
+  {
     display_refreshed = false;
     current_mode++;
   }
-  if (current_mode >= number_of_modes) {
+  if (current_mode >= number_of_modes)
+  {
     current_mode = 0;
   }
   return current_mode;
 }
 
-void display_current_mode(int current_mode) {
-  switch (current_mode) {
+void display_current_mode(int current_mode)
+{
+  switch (current_mode)
+  {
 
   case standard:
     update_standard_display();
@@ -262,15 +302,20 @@ void display_current_mode(int current_mode) {
   }
 }
 
-void switch_box_heating() {
-  if (temperature < set_temperature) {
+void switch_box_heating()
+{
+  if (temperature < set_temperature)
+  {
     // heat on
-  } else {
+  }
+  else
+  {
     // heat off
   }
 }
 
-float calculate_p() {
+float calculate_p()
+{
   // p should be at 100% if humidity is 10%rH below setpoint
   float delta_humidity = humidity_setpoint - humidity;
   float humidity_diference_for_full_reaction = 10; //[%rH]
@@ -279,7 +324,8 @@ float calculate_p() {
   return p;
 }
 
-float calculate_i() {
+float calculate_i()
+{
   // i should go 1% up every minute humidity is 1% below setpoint
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
@@ -293,7 +339,8 @@ float calculate_i() {
   return i;
 }
 
-float calculate_d() {
+float calculate_d()
+{
   // d should be at -100% if humidity is rising at 0.5% in 5 minutes
   float rH_difference_for_full_reaction = 0.5; //[%rh/5minutes]
   float d = -100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
@@ -301,7 +348,8 @@ float calculate_d() {
   return d;
 }
 
-float calculate_pid_water_heater() {
+float calculate_pid_water_heater()
+{
 
   float p = calculate_p();
 
@@ -315,27 +363,31 @@ float calculate_pid_water_heater() {
   return pid; // [0-100%]
 }
 
-void switch_water_heater(float water_heating_power) {
+void switch_water_heater(float water_heating_power)
+{
   unsigned long pwm_cycle_duration = 10000; // =10s
   unsigned long on_time = pwm_cycle_duration * (water_heating_power / 100);
 
   heater_pwm_duration.delay_time_is_up(pwm_cycle_duration);
-  if (heater_pwm_duration.get_remaining_delay_time() < on_time) {
+  if (heater_pwm_duration.get_remaining_delay_time() < on_time)
+  {
     // heat
-  } else {
+  }
+  else
+  {
     // do not heat
   }
 }
 
 // SETUP ***********************************************************************
 
-void setup() {
+void setup()
+{
   eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
   temperature_setpoint = float(eeprom_storage.get_value(eeprom_temp));
   humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
   lcd.init();
   lcd.backlight();
-  dht.begin();
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
   operation_mode = standard;
@@ -344,7 +396,8 @@ void setup() {
 }
 // LOOP ************************************************************************
 
-void loop() {
+void loop()
+{
 
   read_sensor_values();
 
