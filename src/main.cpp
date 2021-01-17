@@ -68,6 +68,9 @@ enum counter
 };
 int numberOfValues = endOfEnum;
 
+// RELAYS ----------------------------------------------------------------------
+const int HEATING_RELAY_PIN = 8;
+
 // ROTARY ENCODER --------------------------------------------------------------
 Encoder encoder(2, 3);
 const int ENCODER_5V_PIN = 4;
@@ -192,7 +195,7 @@ void monitor_changed_values_temperature_display()
   {
     display_refreshed = false;
     encoder_prev_position = current_position;
-    temperature_setpoint++;
+    temperature_setpoint += 0.1;
     eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
@@ -201,7 +204,7 @@ void monitor_changed_values_temperature_display()
   {
     display_refreshed = false;
     encoder_prev_position = current_position;
-    temperature_setpoint--;
+    temperature_setpoint -= 0.1;
     eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
     temperature_setpoint = limit(temperature_setpoint, 18, 35);
   }
@@ -216,7 +219,7 @@ void update_set_temperature_display()
     lcd.setCursor(0, 0);
     lcd.print("temperature set:");
     lcd.setCursor(0, 1);
-    lcd.print(temperature_setpoint, 0);
+    lcd.print(temperature_setpoint, 1);
     lcd.print((char)0b11011111); // = "°"
     lcd.print("C");
     display_refreshed = true;
@@ -259,13 +262,7 @@ void read_sensor_values()
 {
   if (read_delay.delay_time_is_up(1000))
   {
-    // humidity = dht.readHumidity();
-    // temperature = dht.readTemperature();
-    if (!am2315.readTemperatureAndHumidity(&temperature, &humidity))
-    {
-      Serial.println("Failed to read data from AM2315");
-      return;
-    }
+    am2315.readTemperatureAndHumidity(&temperature, &humidity);
   }
 }
 
@@ -304,13 +301,13 @@ void display_current_mode(int current_mode)
 
 void switch_box_heating()
 {
-  if (temperature < set_temperature)
+  if (temperature <= temperature_setpoint)
   {
-    // heat on
+    digitalWrite(HEATING_RELAY_PIN, LOW); // heat on
   }
   else
   {
-    // heat off
+    digitalWrite(HEATING_RELAY_PIN, HIGH); // heat off
   }
 }
 
@@ -388,6 +385,7 @@ void setup()
   humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
   lcd.init();
   lcd.backlight();
+  pinMode(HEATING_RELAY_PIN, OUTPUT);
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
   operation_mode = standard;
