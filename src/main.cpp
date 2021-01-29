@@ -16,6 +16,10 @@
  * DISPLAY: 1602 LCD Display Module
  * ROTARY ENCODER
  * *****************************************************************************
+ * Function principle:
+ * 
+ * 
+ * 
  */
 
 // GLOBAL VARIABLES ------------------------------------------------------------
@@ -90,6 +94,13 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 // SDA @ PIN A4 // SCL @ PIN A5
 Adafruit_AM2315 am2315;
 
+// L298N MOTOR DRIVER MODULE ---------------------------------------------------
+// The driver module is used to control the air heating element
+// Heating the box lets the humidity drop
+// Connect IN2 to GND
+// Use a PWM Signal on IN1 to control the heating power.
+const int HEATING_CONTROL_PWM_PIN = 6;
+
 // FUNCTIONS *******************************************************************
 float limit(float value, float min, float max)
 {
@@ -106,7 +117,6 @@ float limit(float value, float min, float max)
 
 void monitor_changed_values_standard_display()
 {
-
   static float prev_humidity = humidity;
   static float prev_temperature = temperature;
   static float prev_humidity_difference = delta_rH_in_5_mins;
@@ -284,7 +294,6 @@ void display_current_mode(int current_mode)
 {
   switch (current_mode)
   {
-
   case standard:
     update_standard_display();
     break;
@@ -313,8 +322,8 @@ void switch_box_heating()
 
 float calculate_p()
 {
-  // p should be at 100% if humidity is 10%rH below setpoint
-  float delta_humidity = humidity_setpoint - humidity;
+  // p should be at 100% if humidity is 10%rH above setpoint
+  float delta_humidity = humidity - humidity_setpoint;
   float humidity_diference_for_full_reaction = 10; //[%rH]
   float p = 100 * delta_humidity / humidity_diference_for_full_reaction;
   p = limit(p, -100, 100);
@@ -323,12 +332,12 @@ float calculate_p()
 
 float calculate_i()
 {
-  // i should go 1% up every minute humidity is 1% below setpoint
+  // i should go 1% up every minute humidity is 1% above setpoint
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
   previous_time = new_time;
-  float delta_humidity = humidity_setpoint - humidity;
+  float delta_humidity = humidity - humidity_setpoint;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
   static float i = 0;
   i += delta_humidity * delta_t / micros_per_minute;
@@ -338,16 +347,15 @@ float calculate_i()
 
 float calculate_d()
 {
-  // d should be at -100% if humidity is rising at 0.5% in 5 minutes
-  float rH_difference_for_full_reaction = 0.5; //[%rh/5minutes]
-  float d = -100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
+  // d should be at 100% if humidity rises 1% in 5 minutes
+  float rH_difference_for_full_reaction = 1; //[%rh/5minutes]
+  float d = 100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
   d = limit(d, -100, 100);
   return d;
 }
 
 float calculate_pid_water_heater()
 {
-
   float p = calculate_p();
 
   float i = calculate_i();
@@ -360,7 +368,7 @@ float calculate_pid_water_heater()
   return pid; // [0-100%]
 }
 
-void switch_water_heater(float water_heating_power)
+void switch_air_heater(float water_heating_power)
 {
   unsigned long pwm_cycle_duration = 10000; // =10s
   unsigned long on_time = pwm_cycle_duration * (water_heating_power / 100);
@@ -368,6 +376,7 @@ void switch_water_heater(float water_heating_power)
   heater_pwm_duration.delay_time_is_up(pwm_cycle_duration);
   if (heater_pwm_duration.get_remaining_delay_time() < on_time)
   {
+   analogWrite(HEATING_CONTROL_PWM_PIN,255); // 0-255
     // heat
   }
   else
@@ -411,5 +420,5 @@ void loop()
 
   float water_heating_power = calculate_pid_water_heater();
 
-  switch_water_heater(water_heating_power);
+  switch_air_heater(water_heating_power);
 }
