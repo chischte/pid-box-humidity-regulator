@@ -245,26 +245,27 @@ void update_set_humidity_display()
 
 void monitor_changed_values_pid_display()
 {
-  static float prev_pid_p = pid_p;
-  static float prev_pid_i = pid_i;
-  static float prev_pid_d = pid_d;
-  static float prev_pid = pid;
-  if (pid_p != prev_pid_p)
+  static int prev_pid_p = pid_p;
+  static int prev_pid_i = pid_i;
+  static int prev_pid_d = pid_d;
+  static int prev_pid = pid;
+
+  if (int(pid_p) != prev_pid_p)
   {
     display_refreshed = false;
     prev_pid_p = pid_p;
   }
-  if (pid_i != prev_pid_i)
+  if (int(pid_i) != prev_pid_i)
   {
     display_refreshed = false;
     prev_pid_i = pid_i;
   }
-  if (pid_d != prev_pid_d)
+  if (int(pid_d) != prev_pid_d)
   {
     display_refreshed = false;
     prev_pid_d = pid_d;
   }
-  if (pid != prev_pid)
+  if (int(pid) != prev_pid)
   {
     display_refreshed = false;
     prev_pid = pid;
@@ -281,13 +282,13 @@ void update_pid_display()
     lcd.setCursor(0, 0);
     lcd.print("P=:");
     lcd.print(pid_p, 0);
-    lcd.setCursor(7, 0);
+    lcd.setCursor(8, 0);
     lcd.print("I=:");
     lcd.print(pid_i, 0);
     lcd.setCursor(0, 1);
     lcd.print("D=:");
     lcd.print(pid_d, 0);
-    lcd.setCursor(7, 1);
+    lcd.setCursor(8, 1);
     lcd.print("PID=:");
     lcd.print(pid, 0);
     display_refreshed = true;
@@ -388,7 +389,6 @@ void calculate_i()
   previous_time = new_time;
   float delta_humidity = humidity - humidity_setpoint;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
-  static float pid_i = 0;
   pid_i += delta_humidity * delta_t / micros_per_minute;
   pid_i = limit(pid_i, -100, 100);
 }
