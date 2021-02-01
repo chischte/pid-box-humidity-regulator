@@ -28,14 +28,14 @@
 bool display_refreshed = false;
 float humidity;
 float humidity_setpoint;
-float delta_rH_in_5_mins;
+float delta_rH_in_30_seconds;
 float temperature;
 float temperature_setpoint;
 float pid_p = 0;
 float pid_i = 0;
 float pid_d = 0;
 float pid = 0;
-float temperature_limit = 30.0; // [°C] to avoid overheating
+float temperature_limit = 33.0; // [°C] to avoid overheating
 
 static long encoder_prev_position = 0;
 
@@ -43,10 +43,8 @@ static long encoder_prev_position = 0;
 enum Operation_mode
 {
   standard = 0,
-  // set_temperature = 1,
   set_humidty = 1,
-  display_pid = 2,
-  number_of_modes = 3
+  number_of_modes = 2
 };
 Operation_mode operation_mode;
 
@@ -128,7 +126,7 @@ void monitor_changed_values_standard_display()
 {
   static float prev_humidity = humidity;
   static float prev_temperature = temperature;
-  static float prev_humidity_difference = delta_rH_in_5_mins;
+  static float prev_humidity_difference = delta_rH_in_30_seconds;
 
   if (humidity != prev_humidity)
   {
@@ -140,10 +138,10 @@ void monitor_changed_values_standard_display()
     display_refreshed = false;
     prev_temperature = temperature;
   }
-  if (delta_rH_in_5_mins != prev_humidity_difference)
+  if (delta_rH_in_30_seconds != prev_humidity_difference)
   {
     display_refreshed = false;
-    prev_humidity_difference = delta_rH_in_5_mins;
+    prev_humidity_difference = delta_rH_in_30_seconds;
   }
 }
 
@@ -160,8 +158,8 @@ void update_standard_display()
     lcd.print("C");
     lcd.setCursor(0, 1);
     lcd.print(humidity, 1);
-    lcd.print("%rF=>");
-    lcd.print(delta_rH_in_5_mins, 1);
+    lcd.print("%rF =>");
+    lcd.print(delta_rH_in_30_seconds, 1);
     display_refreshed = true;
   }
 }
@@ -205,105 +203,13 @@ void update_set_humidity_display()
   }
 }
 
-// void monitor_changed_values_temperature_display()
-// {
-//   long current_position = encoder.read();
-//   static int encoder_klicks = 4;
-
-//   if (current_position - encoder_prev_position >= encoder_klicks)
-//   {
-//     display_refreshed = false;
-//     encoder_prev_position = current_position;
-//     temperature_setpoint += 0.1;
-//     eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
-//     temperature_setpoint = limit(temperature_setpoint, 18, 35);
-//   }
-
-//   if (encoder_prev_position - current_position >= encoder_klicks)
-//   {
-//     display_refreshed = false;
-//     encoder_prev_position = current_position;
-//     temperature_setpoint -= 0.1;
-//     eeprom_storage.set_value(eeprom_temp, long(temperature_setpoint));
-//     temperature_setpoint = limit(temperature_setpoint, 18, 35);
-//   }
-// }
-
-// void update_set_temperature_display()
-// {
-//   monitor_changed_values_temperature_display();
-//   if (!display_refreshed)
-//   {
-//     lcd.clear();
-//     lcd.setCursor(0, 0);
-//     lcd.print("temperature set:");
-//     lcd.setCursor(0, 1);
-//     lcd.print(temperature_setpoint, 1);
-//     lcd.print((char)0b11011111); // = "°"
-//     lcd.print("C");
-//     display_refreshed = true;
-//   }
-// }
-
-void monitor_changed_values_pid_display()
-{
-  static int prev_pid_p = pid_p;
-  static int prev_pid_i = pid_i;
-  static int prev_pid_d = pid_d;
-  static int prev_pid = pid;
-
-  if (int(pid_p) != prev_pid_p)
-  {
-    display_refreshed = false;
-    prev_pid_p = pid_p;
-  }
-  if (int(pid_i) != prev_pid_i)
-  {
-    display_refreshed = false;
-    prev_pid_i = pid_i;
-  }
-  if (int(pid_d) != prev_pid_d)
-  {
-    display_refreshed = false;
-    prev_pid_d = pid_d;
-  }
-  if (int(pid) != prev_pid)
-  {
-    display_refreshed = false;
-    prev_pid = pid;
-  }
-}
-
-void update_pid_display()
-{
-  monitor_changed_values_pid_display();
-
-  if (!display_refreshed)
-  {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("P=:");
-    lcd.print(pid_p, 0);
-    lcd.setCursor(8, 0);
-    lcd.print("I=:");
-    lcd.print(pid_i, 0);
-    lcd.setCursor(0, 1);
-    lcd.print("D=:");
-    lcd.print(pid_d, 0);
-    lcd.setCursor(8, 1);
-    lcd.print("PID=:");
-    lcd.print(pid, 0);
-    display_refreshed = true;
-  }
-}
-
-void calculate_delta_rH_in_5_mins()
+void calculate_delta_rH_in_30_seconds()
 {
 
   // Log configutation:
-  const int number_of_minutes = 5;
-  const int actualization_rate = 5; // [s]
-  const int number_of_values = number_of_minutes * 60 / actualization_rate;
+  const int number_of_seconds = 30;
+  const int actualization_rate = 2; // [s]
+  const int number_of_values = number_of_seconds / actualization_rate;
   const unsigned long delayTime = actualization_rate * 1000;
 
   static float humidity_log[number_of_values];
@@ -320,11 +226,11 @@ void calculate_delta_rH_in_5_mins()
     humidity_log[number_of_values - 1] = humidity;
     if (humidity_log[0] != 0)
     {
-      delta_rH_in_5_mins = humidity - humidity_log[0];
+      delta_rH_in_30_seconds = humidity - humidity_log[0];
     }
     else
     {
-      delta_rH_in_5_mins = 0;
+      delta_rH_in_30_seconds = 0;
     }
   }
 }
@@ -367,25 +273,22 @@ void display_current_mode(int current_mode)
     update_set_humidity_display();
     break;
 
-  case display_pid:
-    update_pid_display();
-    break;
   }
 }
 
 void calculate_p()
 {
-  // p should be at 100% if humidity is 3%rH above setpoint
+  // p should be at 100% if humidity is 2%rH above setpoint
   float delta_humidity = humidity - humidity_setpoint;
-  float humidity_diference_for_full_reaction = 3; //[%rH]
+  float humidity_diference_for_full_reaction = 2; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
   pid_p = limit(pid_p, -100, 100);
 }
 
 void calculate_i()
 {
-  // i should go 3% up every minute humidity is 1% above setpoint
-  float i_factor = 3; // [%]
+  // i should go 4% up every minute humidity is 1% above setpoint
+  float i_factor = 4; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
@@ -393,14 +296,14 @@ void calculate_i()
   float delta_humidity = humidity - humidity_setpoint;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
   pid_i += i_factor * delta_humidity * delta_t / micros_per_minute;
-  pid_i = limit(pid_i, -100, 100);
+  pid_i = limit(pid_i, 0, 100);
 }
 
 void calculate_d()
 {
-  // d should be at 100% if humidity rises 2% in 5 minutes
-  float rH_difference_for_full_reaction = 2; //[%rh/5minutes]
-  pid_d = 100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
+  // d should be at 100% if humidity rises 0.5% in 30 seconds
+  float rH_difference_for_full_reaction = 0.5; //[%rh/5minutes]
+  pid_d = 100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
 
@@ -431,7 +334,7 @@ void switch_air_heater()
 
 void print_debug_graph()
 {
-  if (serial_print_delay.delay_time_is_up(10000))
+  if (serial_print_delay.delay_time_is_up(7000))
   {
     Serial.print(-100);
     Serial.print(",");
@@ -485,7 +388,7 @@ void loop()
   display_current_mode(current_mode);
 
   // Log humidity and get humidity difference:
-  calculate_delta_rH_in_5_mins();
+  calculate_delta_rH_in_30_seconds();
 
   calculate_pid_air_heater();
 
