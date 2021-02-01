@@ -1,27 +1,21 @@
 /*
  * *****************************************************************************
- * THERMO-HYGROMETER
+ * PID BOX HUMIDITY CONTROLLER
  * *****************************************************************************
  * Reads temperature and humidity values from a sensor
- * Calculates the value by which humidity has changed in 5 minutes
  * Displays the values on an LCD display
- * Controlls the temperature inside a box using a two point controller.
- * Controlls the humidity inside the box regulating the temperature of the
- * air supplied, using a PID regulation algorithm.
+ * Regulates the humidity inside a box using a PID regulation algorithm.
+ * The humidity is regulated by changing the air temperature.
+ * Heating up the are lets he humidity drop.
  * *****************************************************************************
  * Michael Wettstein
- * January 2020, Zürich
+ * February 2020, Zürich
  * *****************************************************************************
  * SENSOR:  AM2315
  * DISPLAY: 1602 LCD Display Module
  * ROTARY ENCODER
+ * L298N MOTOR DRIVER MODULE (to regulate the heating element)
  * *****************************************************************************
- * Function principle:
- * 
- * 
- * *****************************************************************************
- * TODO:
- * Implement absolute MAX and MIN temperature to avoid extreme temperatures 
  */
 
 // GLOBAL VARIABLES ------------------------------------------------------------
@@ -36,7 +30,6 @@ float pid_i = 0;
 float pid_d = 0;
 float pid = 0;
 float temperature_limit = 33.0; // [°C] to avoid overheating
-
 static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
@@ -61,7 +54,6 @@ Operation_mode operation_mode;
 
 // NO SLEEP DELAYS -------------------------------------------------------------
 Insomnia read_delay;
-Insomnia heater_pwm_duration;
 Insomnia log_delay;
 Insomnia serial_print_delay;
 
@@ -102,7 +94,7 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 Adafruit_AM2315 am2315;
 
 // L298N MOTOR DRIVER MODULE ---------------------------------------------------
-// The driver module is used to control the air heating element
+// The driver module is used to control th power of the air heating element
 // Heating the box lets the humidity drop
 // Connect IN2 to GND
 // Use a PWM Signal on IN1 to control the heating power.
@@ -216,7 +208,6 @@ void calculate_delta_rH_in_30_seconds()
 
   if (log_delay.delay_time_is_up(delayTime))
   {
-
     // Move values one index back:
     for (int i = 0; i < (number_of_values - 1); i++)
     {
@@ -265,14 +256,9 @@ void display_current_mode(int current_mode)
     update_standard_display();
     break;
 
-    // case set_temperature:
-    //   update_set_temperature_display();
-    //   break;
-
   case set_humidty:
     update_set_humidity_display();
     break;
-
   }
 }
 
@@ -332,7 +318,7 @@ void switch_air_heater()
   }
 }
 
-void print_debug_graph()
+void print_serial_plot_chart()
 {
   if (serial_print_delay.delay_time_is_up(7000))
   {
@@ -360,7 +346,6 @@ void print_debug_graph()
 }
 
 // SETUP ***********************************************************************
-
 void setup()
 {
   eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
@@ -375,11 +360,10 @@ void setup()
   Serial.begin(9600);
   Serial.println("EXIT SETUP");
 }
-// LOOP ************************************************************************
 
+// LOOP ************************************************************************
 void loop()
 {
-
   read_sensor_values();
 
   // Toggle display modes:
@@ -394,5 +378,5 @@ void loop()
 
   switch_air_heater();
 
-  print_debug_graph();
+  print_serial_plot_chart();
 }
