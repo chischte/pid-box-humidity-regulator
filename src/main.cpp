@@ -35,6 +35,7 @@ float pid_p = 0;
 float pid_i = 0;
 float pid_d = 0;
 float pid = 0;
+float temperature_limit = 30.0; // [°C] to avoid overheating
 
 static long encoder_prev_position = 0;
 
@@ -64,6 +65,7 @@ Operation_mode operation_mode;
 Insomnia read_delay;
 Insomnia heater_pwm_duration;
 Insomnia log_delay;
+Insomnia serial_print_delay;
 
 // EEPROM STORAGE --------------------------------------------------------------
 EEPROM_Counter eeprom_storage;
@@ -300,7 +302,7 @@ void calculate_delta_rH_in_5_mins()
 
   // Log configutation:
   const int number_of_minutes = 5;
-  const int actualization_rate = 10; // [s]
+  const int actualization_rate = 5; // [s]
   const int number_of_values = number_of_minutes * 60 / actualization_rate;
   const unsigned long delayTime = actualization_rate * 1000;
 
@@ -357,9 +359,9 @@ void display_current_mode(int current_mode)
     update_standard_display();
     break;
 
-  // case set_temperature:
-  //   update_set_temperature_display();
-  //   break;
+    // case set_temperature:
+    //   update_set_temperature_display();
+    //   break;
 
   case set_humidty:
     update_set_humidity_display();
@@ -373,31 +375,32 @@ void display_current_mode(int current_mode)
 
 void calculate_p()
 {
-  // p should be at 100% if humidity is 10%rH above setpoint
+  // p should be at 100% if humidity is 3%rH above setpoint
   float delta_humidity = humidity - humidity_setpoint;
-  float humidity_diference_for_full_reaction = 10; //[%rH]
+  float humidity_diference_for_full_reaction = 3; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
   pid_p = limit(pid_p, -100, 100);
 }
 
 void calculate_i()
 {
-  // i should go 1% up every minute humidity is 1% above setpoint
+  // i should go 3% up every minute humidity is 1% above setpoint
+  float i_factor = 3; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
   previous_time = new_time;
   float delta_humidity = humidity - humidity_setpoint;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
-  pid_i += delta_humidity * delta_t / micros_per_minute;
+  pid_i += i_factor * delta_humidity * delta_t / micros_per_minute;
   pid_i = limit(pid_i, -100, 100);
 }
 
 void calculate_d()
 {
-  // d should be at 100% if humidity rises 1% in 5 minutes
-  float rH_difference_for_full_reaction = 1; //[%rh/5minutes]
-  float pid_d = 100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
+  // d should be at 100% if humidity rises 2% in 5 minutes
+  float rH_difference_for_full_reaction = 2; //[%rh/5minutes]
+  pid_d = 100 * delta_rH_in_5_mins / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
 
@@ -415,8 +418,42 @@ void calculate_pid_air_heater()
 
 void switch_air_heater()
 {
-  int heating_power = map(pid, 0, 100, 0, 255);
-  analogWrite(HEATING_CONTROL_PWM_PIN, heating_power); // 0-255
+  if (temperature < temperature_limit)
+  {
+    int heating_power = map(pid, 0, 100, 0, 255);
+    analogWrite(HEATING_CONTROL_PWM_PIN, heating_power); // 0-255
+  }
+  else
+  {
+    analogWrite(HEATING_CONTROL_PWM_PIN, 0);
+  }
+}
+
+void print_debug_graph()
+{
+  if (serial_print_delay.delay_time_is_up(10000))
+  {
+    Serial.print(-100);
+    Serial.print(",");
+    Serial.print(+100);
+    Serial.print(",");
+    Serial.print(0);
+    Serial.print(",");
+    Serial.print(pid_p);
+    Serial.print(",");
+    Serial.print(pid_i);
+    Serial.print(",");
+    Serial.print(pid_d);
+    Serial.print(",");
+    Serial.print(pid);
+    Serial.print(",");
+    Serial.print(temperature);
+    Serial.print(",");
+    Serial.print(humidity);
+    Serial.print(",");
+    Serial.print(humidity_setpoint);
+    Serial.println();
+  }
 }
 
 // SETUP ***********************************************************************
@@ -453,4 +490,6 @@ void loop()
   calculate_pid_air_heater();
 
   switch_air_heater();
+
+  print_debug_graph();
 }
