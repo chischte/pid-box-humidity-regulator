@@ -1,12 +1,13 @@
 /*
  * *****************************************************************************
- * PID BOX HUMIDITY CONTROLLER
+ * PID BOX HUMIDITY REGULATOR
  * *****************************************************************************
  * Reads temperature and humidity values from a sensor
  * Displays the values on an LCD display
  * Regulates the humidity inside a box using a PID regulation algorithm.
  * The humidity is regulated by changing the air temperature.
- * Heating up the are lets he humidity drop.
+ * Heating up the air lets the humidity drop.
+ * Humidity is successfully regulated in a range of +/-0.2%rH
  * *****************************************************************************
  * Michael Wettstein
  * February 2020, Zürich
