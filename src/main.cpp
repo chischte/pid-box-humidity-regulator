@@ -25,12 +25,11 @@ float humidity;
 float humidity_setpoint;
 float delta_rH_in_30_seconds;
 float temperature;
-float temperature_setpoint;
+float temperature_limit; // to avoid overheating
 float pid_p = 0;
 float pid_i = 0;
 float pid_d = 0;
 float pid = 0;
-float temperature_limit = 33.0; // [°C] to avoid overheating
 static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
@@ -38,7 +37,8 @@ enum Operation_mode
 {
   standard = 0,
   set_humidty = 1,
-  number_of_modes = 2
+  set_temperature_limit = 2,
+  number_of_modes = 3
 };
 Operation_mode operation_mode;
 
@@ -188,10 +188,49 @@ void update_set_humidity_display()
   {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("humidity set:");
+    lcd.print("set humidity:");
     lcd.setCursor(0, 1);
     lcd.print(humidity_setpoint, 0);
     lcd.print("%rF");
+    display_refreshed = true;
+  }
+}
+
+void monitor_changed_values_temperature_display()
+{
+  long current_position = encoder.read();
+  static int encoder_klicks = 4;
+
+  if (current_position - encoder_prev_position >= encoder_klicks)
+  {
+    display_refreshed = false;
+    encoder_prev_position = current_position;
+    temperature_limit++;
+    eeprom_storage.set_value(eeprom_temp, long(temperature_limit));
+  }
+
+  if (encoder_prev_position - current_position >= encoder_klicks)
+  {
+    display_refreshed = false;
+    encoder_prev_position = current_position;
+    temperature_limit--;
+    eeprom_storage.set_value(eeprom_temp, long(temperature_limit));
+  }
+  temperature_limit = limit(temperature_limit, 20, 35);
+}
+
+void update_set_temperature_display()
+{
+  monitor_changed_values_temperature_display();
+  if (!display_refreshed)
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("set temp limit:");
+    lcd.setCursor(0, 1);
+    lcd.print(temperature_limit, 0);
+    lcd.print((char)0b11011111); // = "°"
+    lcd.print("C");
     display_refreshed = true;
   }
 }
@@ -260,6 +299,10 @@ void display_current_mode(int current_mode)
   case set_humidty:
     update_set_humidity_display();
     break;
+
+  case set_temperature_limit:
+    update_set_temperature_display();
+    break;
   }
 }
 
@@ -308,7 +351,7 @@ void calculate_pid_air_heater()
 
 void switch_air_heater()
 {
-  if (temperature < temperature_limit)
+  if (temperature <= temperature_limit)
   {
     int heating_power = map(pid, 0, 100, 0, 255);
     analogWrite(HEATING_CONTROL_PWM_PIN, heating_power); // 0-255
@@ -350,7 +393,7 @@ void print_serial_plot_chart()
 void setup()
 {
   eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
-  temperature_setpoint = float(eeprom_storage.get_value(eeprom_temp));
+  temperature_limit = float(eeprom_storage.get_value(eeprom_temp));
   humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
   lcd.init();
   lcd.backlight();
