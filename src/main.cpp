@@ -161,14 +161,14 @@ void monitor_changed_values_humidity_display()
 {
   long current_position = encoder.read();
   static int encoder_klicks = 4;
+  float min_humidity = 0;
+  float max_humidity = 100;
 
   if (current_position - encoder_prev_position >= encoder_klicks)
   {
     display_refreshed = false;
     encoder_prev_position = current_position;
     humidity_setpoint++;
-    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
-    humidity_setpoint = limit(humidity_setpoint, 0, 99);
   }
 
   if (encoder_prev_position - current_position >= encoder_klicks)
@@ -177,8 +177,8 @@ void monitor_changed_values_humidity_display()
     encoder_prev_position = current_position;
     humidity_setpoint--;
     eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
-    humidity_setpoint = limit(humidity_setpoint, 0, 99);
   }
+  humidity_setpoint = limit(humidity_setpoint, min_humidity, max_humidity);
 }
 
 void update_set_humidity_display()
