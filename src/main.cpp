@@ -2,12 +2,12 @@
  * *****************************************************************************
  * PID BOX HUMIDITY REGULATOR
  * *****************************************************************************
- * Reads temperature and humidity values from a sensor
- * Displays the values on an LCD display
+ * Reads temperature and humidity values from a sensor.
+ * Displays the values on an LCD display.
  * Regulates the humidity inside a box using a PID regulation algorithm.
  * The humidity is regulated by changing the air temperature.
  * Heating up the air lets the humidity drop.
- * Humidity is successfully regulated in a range of +/-0.2%rH
+ * Humidity is successfully regulated in a range of +/-0.2%rH.
  * *****************************************************************************
  * Michael Wettstein
  * February 2020, Zürich
@@ -288,8 +288,8 @@ void calculate_i()
 
 void calculate_d()
 {
-  // d should be at 100% if humidity rises 0.5% in 30 seconds
-  float rH_difference_for_full_reaction = 0.5; //[%rh/5minutes]
+  // d should be at 100% if humidity rises 1% in 30 seconds
+  float rH_difference_for_full_reaction = 1; //[%rh/5minutes]
   pid_d = 100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
