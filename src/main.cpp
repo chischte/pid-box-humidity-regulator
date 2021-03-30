@@ -317,10 +317,10 @@ void switch_air_heater() {
     if (!fogger_state) {
       fogger_cycle_timeout.set_time(fogger_off_timeout);
     }
-    Serial.println(fogger_cycle_timeout.get_remaining_timeout_time());
+    // Serial.println(fogger_cycle_timeout.get_remaining_timeout_time());
   }
 
-  // digitalWrite(FOGGER_RELAY_PIN, fogger_state);
+  digitalWrite(FOGGER_RELAY_PIN, fogger_state);
 }
 
 void print_serial_plot_chart() {
