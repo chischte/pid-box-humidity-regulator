@@ -304,7 +304,7 @@ void switch_air_heater() {
   unsigned long fogger_on_time = 2000; // fogger has to be at least ca. 1.5s on to fog
 
   int min_off_time = 0; // [s]
-  int max_off_time = 120; // [s]
+  int max_off_time = 60; // [s]
   int current_off_time = map(pid, 0, 100, max_off_time, min_off_time);
 
   unsigned long fogger_off_timeout = 1000 * long(current_off_time);
