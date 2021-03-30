@@ -260,30 +260,30 @@ void display_current_mode(int current_mode) {
 }
 
 void calculate_p() {
-  // p should be at 100% if humidity is 2%rH above setpoint
-  float delta_humidity = humidity - humidity_setpoint;
+  // p should be at 100% if humidity is 2%rH below setpoint
+  float delta_humidity = humidity_setpoint - humidity;
   float humidity_diference_for_full_reaction = 2; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
   pid_p = limit(pid_p, -100, 100);
 }
 
 void calculate_i() {
-  // i should go 4% up every minute humidity is 1% above setpoint
+  // i should go 4% up every minute humidity is 1% below setpoint
   float i_factor = 4; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
   previous_time = new_time;
-  float delta_humidity = humidity - humidity_setpoint;
+  float delta_humidity = humidity_setpoint - humidity;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
   pid_i += i_factor * delta_humidity * delta_t / micros_per_minute;
   pid_i = limit(pid_i, 0, 100);
 }
 
 void calculate_d() {
-  // d should be at 100% if humidity rises 1% in 30 seconds
+  // d should be at -100% if humidity rises 1% in 30 seconds
   float rH_difference_for_full_reaction = 1; //[%rh/5minutes]
-  pid_d = 100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
+  pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
 
@@ -304,7 +304,7 @@ void switch_air_heater() {
   unsigned long fogger_on_time = 2000; // fogger has to be at least ca. 1.5s on to fog
 
   int min_off_time = 0; // [s]
-  int max_off_time = 60; // [s]
+  int max_off_time = 20; // [s]
   int current_off_time = map(pid, 0, 100, max_off_time, min_off_time);
 
   unsigned long fogger_off_timeout = 1000 * long(current_off_time);
@@ -315,11 +315,12 @@ void switch_air_heater() {
       fogger_cycle_timeout.set_time(fogger_on_time);
     }
     if (!fogger_state) {
-      fogger_cycle_timeout.set_time(current_off_time);
+      fogger_cycle_timeout.set_time(fogger_off_timeout);
     }
+    Serial.println(fogger_cycle_timeout.get_remaining_timeout_time());
   }
 
-  digitalWrite(FOGGER_RELAY_PIN, fogger_state);
+  // digitalWrite(FOGGER_RELAY_PIN, fogger_state);
 }
 
 void print_serial_plot_chart() {
@@ -342,7 +343,7 @@ void print_serial_plot_chart() {
     Serial.print(",");
     Serial.print(humidity);
     Serial.print(",");
-    Serial.print(humidity_setpoint);
+   Serial.print(humidity_setpoint);
     Serial.println();
   }
 }
