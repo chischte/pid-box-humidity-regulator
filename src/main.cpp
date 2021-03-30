@@ -30,12 +30,7 @@ float pid = 0;
 static long encoder_prev_position = 0;
 
 // ENUM FOR OPERATION MODES ----------------------------------------------------
-enum Operation_mode {
-  standard = 0,
-  set_humidty = 1,
-  set_temperature_limit = 2,
-  number_of_modes = 3
-};
+enum Operation_mode { standard = 0, set_humidty = 1, number_of_modes = 2 };
 Operation_mode operation_mode;
 
 // INCLUDES --------------------------------------------------------------------
@@ -61,7 +56,7 @@ EEPROM_Counter eeprom_storage;
 int eepromMinAddress = 0;
 int eepromMaxAddress = 1000; // EEPROM size Arduino Nano/Uno: 1024 bytes
 
-enum counter { eeprom_temp, eeprom_humidity, endOfEnum };
+enum counter { eeprom_humidity, endOfEnum };
 int numberOfValues = endOfEnum;
 
 // RELAYS ----------------------------------------------------------------------
@@ -143,6 +138,7 @@ void monitor_changed_values_humidity_display() {
     display_refreshed = false;
     encoder_prev_position = current_position;
     humidity_setpoint++;
+    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
   }
 
   if (encoder_prev_position - current_position >= encoder_klicks) {
@@ -163,40 +159,6 @@ void update_set_humidity_display() {
     lcd.setCursor(0, 1);
     lcd.print(humidity_setpoint, 0);
     lcd.print("%rF");
-    display_refreshed = true;
-  }
-}
-
-void monitor_changed_values_temperature_display() {
-  long current_position = encoder.read();
-  static int encoder_klicks = 4;
-
-  if (current_position - encoder_prev_position >= encoder_klicks) {
-    display_refreshed = false;
-    encoder_prev_position = current_position;
-    temperature_limit++;
-    eeprom_storage.set_value(eeprom_temp, long(temperature_limit));
-  }
-
-  if (encoder_prev_position - current_position >= encoder_klicks) {
-    display_refreshed = false;
-    encoder_prev_position = current_position;
-    temperature_limit--;
-    eeprom_storage.set_value(eeprom_temp, long(temperature_limit));
-  }
-  temperature_limit = limit(temperature_limit, 20, 35);
-}
-
-void update_set_temperature_display() {
-  monitor_changed_values_temperature_display();
-  if (!display_refreshed) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("set temp limit:");
-    lcd.setCursor(0, 1);
-    lcd.print(temperature_limit, 0);
-    lcd.print((char)0b11011111); // = "°"
-    lcd.print("C");
     display_refreshed = true;
   }
 }
@@ -252,19 +214,15 @@ void display_current_mode(int current_mode) {
   case set_humidty:
     update_set_humidity_display();
     break;
-
-  case set_temperature_limit:
-    update_set_temperature_display();
-    break;
   }
 }
 
 void calculate_p() {
-  // p should be at 100% if humidity is 2%rH below setpoint
+  // p should be at 100% if humidity is 6%rH below setpoint
   float delta_humidity = humidity_setpoint - humidity;
-  float humidity_diference_for_full_reaction = 2; //[%rH]
+  float humidity_diference_for_full_reaction = 6; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
-  pid_p = limit(pid_p, -100, 100);
+  pid_p = limit(pid_p, -100, 50); // limited to 50% upwards becaus %rH can rise much faster!
 }
 
 void calculate_i() {
@@ -281,10 +239,10 @@ void calculate_i() {
 }
 
 void calculate_d() {
-  // d should be at -100% if humidity rises 1% in 30 seconds
-  float rH_difference_for_full_reaction = 1; //[%rh/5minutes]
+  // d should be at -100% if humidity rises 1.5% in 30 seconds
+  float rH_difference_for_full_reaction = 1.5; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
-  pid_d = limit(pid_d, -100, 100);
+  pid_d = limit(pid_d, -100, 50); // limited to 50% upwards becaus %rH can rise much faster!
 }
 
 void calculate_pid_air_heater() {
@@ -343,7 +301,7 @@ void print_serial_plot_chart() {
     Serial.print(",");
     Serial.print(humidity);
     Serial.print(",");
-   Serial.print(humidity_setpoint);
+    Serial.print(humidity_setpoint);
     Serial.println();
   }
 }
@@ -351,7 +309,6 @@ void print_serial_plot_chart() {
 // SETUP ***********************************************************************
 void setup() {
   eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
-  temperature_limit = float(eeprom_storage.get_value(eeprom_temp));
   humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
   lcd.init();
   lcd.backlight();
