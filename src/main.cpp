@@ -222,16 +222,16 @@ void display_current_mode(int current_mode) {
 }
 
 void calculate_p() {
-  // p should be at 100% if humidity is 3%rH below setpoint
+  // p should be at 100% if humidity is 20%rH below setpoint
   float delta_humidity = humidity_setpoint - humidity;
-  float humidity_diference_for_full_reaction = 6; //[%rH]
+  float humidity_diference_for_full_reaction = 10; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
   pid_p = limit(pid_p, -100, 100);
 }
 
 void calculate_i() {
-  // i should go 6% up every minute humidity is 1% below setpoint
-  float i_factor = 6; // [%]
+  // i should go 10% up every minute humidity is 1% below setpoint
+  float i_factor = 10; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
@@ -243,8 +243,8 @@ void calculate_i() {
 }
 
 void calculate_d() {
-  // d should be at -100% if humidity rises 7% in 20 seconds
-  float rH_difference_for_full_reaction = 7.0; //[%rh/5minutes]
+  // d should be at -100% if humidity rises 10% in 20 seconds
+  float rH_difference_for_full_reaction = 10.0; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
