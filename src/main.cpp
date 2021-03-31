@@ -242,7 +242,7 @@ void calculate_i() {
   pid_i = limit(pid_i, -100, 100);
 }
 
-void calculate_d() {
+void calculate_d() { // --> DEACTIVATED
   // d should be at -100% if humidity rises 20% in 20 seconds
   float rH_difference_for_full_reaction = 20.0; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
