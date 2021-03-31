@@ -230,8 +230,8 @@ void calculate_p() {
 }
 
 void calculate_i() {
-  // i should go 3% up every minute humidity is 1% below setpoint
-  float i_factor = 3.0; // [%]
+  // i should go 2% up every minute humidity is 1% below setpoint
+  float i_factor = 2.0; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
@@ -243,10 +243,10 @@ void calculate_i() {
 }
 
 void calculate_d() {
-  // d should be at -100% if humidity rises 15% in 20 seconds
-  float rH_difference_for_full_reaction = 15.0; //[%rh/5minutes]
+  // d should be at -100% if humidity rises 20% in 20 seconds
+  float rH_difference_for_full_reaction = 20.0; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
-  pid_d = limit(pid_d, -100, 100);
+  pid_d = limit(pid_d, 0, 0); // -> DEACTIVATED
 }
 
 void calculate_pid_air_heater() {
