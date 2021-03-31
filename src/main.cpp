@@ -33,6 +33,9 @@ static long encoder_prev_position = 0;
 enum Operation_mode { standard = 0, set_humidty = 1, number_of_modes = 2 };
 Operation_mode operation_mode;
 
+enum Fogger_mode { fogger_on = 0, fogger_off = 1 };
+Fogger_mode fogger_mode;
+
 // INCLUDES --------------------------------------------------------------------
 #include <Adafruit_AM2315.h>
 #include <Arduino.h>
@@ -48,7 +51,8 @@ Operation_mode operation_mode;
 Insomnia read_delay;
 Insomnia log_delay;
 Insomnia serial_print_delay;
-Insomnia fogger_cycle_timeout;
+Insomnia fogger_on_delay;
+Insomnia fogger_off_delay;
 
 // EEPROM STORAGE --------------------------------------------------------------
 EEPROM_Counter eeprom_storage;
@@ -163,10 +167,10 @@ void update_set_humidity_display() {
   }
 }
 
-void calculate_delta_rH_in_30_seconds() {
+void calculate_delta_rH_in_20_seconds() {
 
   // Log configutation:
-  const int number_of_seconds = 30;
+  const int number_of_seconds = 20;
   const int actualization_rate = 2; // [s]
   const int number_of_values = number_of_seconds / actualization_rate;
   const unsigned long delayTime = actualization_rate * 1000;
@@ -222,7 +226,7 @@ void calculate_p() {
   float delta_humidity = humidity_setpoint - humidity;
   float humidity_diference_for_full_reaction = 6; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
-  pid_p = limit(pid_p, -100, 50); // limited to 50% upwards becaus %rH can rise much faster!
+  pid_p = limit(pid_p, -100, 100);
 }
 
 void calculate_i() {
@@ -235,14 +239,14 @@ void calculate_i() {
   float delta_humidity = humidity_setpoint - humidity;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
   pid_i += i_factor * delta_humidity * delta_t / micros_per_minute;
-  pid_i = limit(pid_i, 0, 100);
+  pid_i = limit(pid_i, -100, 100);
 }
 
 void calculate_d() {
-  // d should be at -100% if humidity rises 1.5% in 30 seconds
-  float rH_difference_for_full_reaction = 1.5; //[%rh/5minutes]
+  // d should be at -100% if humidity rises 1% in 20 seconds
+  float rH_difference_for_full_reaction = 1.0; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
-  pid_d = limit(pid_d, -100, 50); // limited to 50% upwards becaus %rH can rise much faster!
+  pid_d = limit(pid_d, -100, 100);
 }
 
 void calculate_pid_air_heater() {
@@ -256,29 +260,32 @@ void calculate_pid_air_heater() {
   pid = limit(pid, 0, 100);
 }
 
-void switch_air_heater() {
+void switch_ultrasonic_fogger() {
 
-  static bool fogger_state = 1;
-  unsigned long fogger_on_time = 2000; // fogger has to be at least ca. 1.5s on to fog
+  static bool fogger_fogging = 1;
 
   int min_off_time = 0; // [s]
   int max_off_time = 20; // [s]
-  int current_off_time = map(pid, 0, 100, max_off_time, min_off_time);
+  int current_off_time = map(pid, 0, 100, max_off_time, min_off_time); // [s]
 
-  unsigned long fogger_off_timeout = 1000 * long(current_off_time);
+  unsigned long fogger_on_time = 1500; // [ms] fogger has to be at least ca. 1.5s on to fog
+  unsigned long fogger_off_time = long(current_off_time) * 1000;
 
-  if (fogger_cycle_timeout.has_timed_out()) {
-    fogger_state = !fogger_state;
-    if (fogger_state) {
-      fogger_cycle_timeout.set_time(fogger_on_time);
+  switch (fogger_mode) {
+  case fogger_on:
+    if (fogger_on_delay.delay_time_is_up(fogger_on_time)) {
+      fogger_fogging = false;
+      fogger_mode = fogger_off;
     }
-    if (!fogger_state) {
-      fogger_cycle_timeout.set_time(fogger_off_timeout);
+    break;
+  case fogger_off:
+    if (fogger_off_delay.delay_time_is_up(fogger_off_time)) {
+      fogger_fogging = true;
+      fogger_mode = fogger_on;
     }
-    // Serial.println(fogger_cycle_timeout.get_remaining_timeout_time());
+    break;
   }
-
-  digitalWrite(FOGGER_RELAY_PIN, fogger_state);
+  digitalWrite(FOGGER_RELAY_PIN, fogger_fogging);
 }
 
 void print_serial_plot_chart() {
@@ -316,6 +323,7 @@ void setup() {
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
   operation_mode = standard;
+  fogger_on_delay.set_flag_activated(true);
   Serial.begin(9600);
   Serial.println("EXIT SETUP");
 }
@@ -330,11 +338,11 @@ void loop() {
   display_current_mode(current_mode);
 
   // Log humidity and get humidity difference:
-  calculate_delta_rH_in_30_seconds();
+  calculate_delta_rH_in_20_seconds();
 
   calculate_pid_air_heater();
 
-  switch_air_heater();
+  switch_ultrasonic_fogger();
 
   print_serial_plot_chart();
 }
