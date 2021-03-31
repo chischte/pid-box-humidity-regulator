@@ -222,7 +222,7 @@ void display_current_mode(int current_mode) {
 }
 
 void calculate_p() {
-  // p should be at 100% if humidity is 6%rH below setpoint
+  // p should be at 100% if humidity is 3%rH below setpoint
   float delta_humidity = humidity_setpoint - humidity;
   float humidity_diference_for_full_reaction = 6; //[%rH]
   pid_p = 100 * delta_humidity / humidity_diference_for_full_reaction;
@@ -230,8 +230,8 @@ void calculate_p() {
 }
 
 void calculate_i() {
-  // i should go 4% up every minute humidity is 1% below setpoint
-  float i_factor = 4; // [%]
+  // i should go 6% up every minute humidity is 1% below setpoint
+  float i_factor = 6; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
@@ -243,8 +243,8 @@ void calculate_i() {
 }
 
 void calculate_d() {
-  // d should be at -100% if humidity rises 1% in 20 seconds
-  float rH_difference_for_full_reaction = 1.0; //[%rh/5minutes]
+  // d should be at -100% if humidity rises 7% in 20 seconds
+  float rH_difference_for_full_reaction = 7.0; //[%rh/5minutes]
   pid_d = -100 * delta_rH_in_30_seconds / rH_difference_for_full_reaction;
   pid_d = limit(pid_d, -100, 100);
 }
@@ -265,10 +265,11 @@ void switch_ultrasonic_fogger() {
   static bool fogger_fogging = 1;
 
   int min_off_time = 0; // [s]
-  int max_off_time = 20; // [s]
+  int max_off_time = 120; // [s]
   int current_off_time = map(pid, 0, 100, max_off_time, min_off_time); // [s]
 
-  unsigned long fogger_on_time = 1500; // [ms] fogger has to be at least ca. 1.5s on to fog
+  unsigned long fogger_on_time = 2000; // [ms] fogger has to be at least ca. 1.5s on to fog
+
   unsigned long fogger_off_time = long(current_off_time) * 1000;
 
   switch (fogger_mode) {
@@ -290,9 +291,9 @@ void switch_ultrasonic_fogger() {
 
 void print_serial_plot_chart() {
   if (serial_print_delay.delay_time_is_up(7000)) {
-    Serial.print(-100);
+    Serial.print(-101);
     Serial.print(",");
-    Serial.print(+100);
+    Serial.print(+101);
     Serial.print(",");
     Serial.print(0);
     Serial.print(",");
