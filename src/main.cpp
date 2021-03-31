@@ -230,8 +230,8 @@ void calculate_p() {
 }
 
 void calculate_i() {
-  // i should go 10% up every minute humidity is 1% below setpoint
-  float i_factor = 10; // [%]
+  // i should go 3% up every minute humidity is 1% below setpoint
+  float i_factor = 3.0; // [%]
   static unsigned long previous_time = micros();
   unsigned long new_time = micros();
   unsigned long delta_t = new_time - previous_time;
