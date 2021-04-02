@@ -136,20 +136,28 @@ void monitor_changed_values_humidity_display() {
   long current_position = encoder.read();
   static int encoder_klicks = 4;
   float min_humidity = 0;
-  float max_humidity = 100;
+  float max_humidity = 99.8;
 
   if (current_position - encoder_prev_position >= encoder_klicks) {
     display_refreshed = false;
     encoder_prev_position = current_position;
-    humidity_setpoint++;
-    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
+    if (humidity_setpoint > 98.99) {
+      humidity_setpoint += 0.1;
+    } else {
+      humidity_setpoint += 1;
+    }
+    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint * 10));
   }
 
   if (encoder_prev_position - current_position >= encoder_klicks) {
     display_refreshed = false;
     encoder_prev_position = current_position;
-    humidity_setpoint--;
-    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint));
+       if (humidity_setpoint > 99.001) { // X.001 because of double unprecision
+      humidity_setpoint -= 0.1;
+    } else {
+      humidity_setpoint -= 1;
+    }
+    eeprom_storage.set_value(eeprom_humidity, long(humidity_setpoint * 10));
   }
   humidity_setpoint = limit(humidity_setpoint, min_humidity, max_humidity);
 }
@@ -161,7 +169,7 @@ void update_set_humidity_display() {
     lcd.setCursor(0, 0);
     lcd.print("set humidity:");
     lcd.setCursor(0, 1);
-    lcd.print(humidity_setpoint, 0);
+    lcd.print(humidity_setpoint, 1);
     lcd.print("%rF");
     display_refreshed = true;
   }
@@ -239,7 +247,7 @@ void calculate_i() {
   float delta_humidity = humidity_setpoint - humidity;
   float micros_per_minute = 1000.f * 1000.f * 60.f;
   pid_i += i_factor * delta_humidity * delta_t / micros_per_minute;
-  pid_i = limit(pid_i, -100, 100);
+  pid_i = limit(pid_i, 0, 100);
 }
 
 void calculate_d() { // --> DEACTIVATED
@@ -317,7 +325,7 @@ void print_serial_plot_chart() {
 // SETUP ***********************************************************************
 void setup() {
   eeprom_storage.setup(eepromMinAddress, eepromMaxAddress, numberOfValues);
-  humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity));
+  humidity_setpoint = float(eeprom_storage.get_value(eeprom_humidity)) / 10;
   lcd.init();
   lcd.backlight();
   pinMode(FOGGER_RELAY_PIN, OUTPUT);
