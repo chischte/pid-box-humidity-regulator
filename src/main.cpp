@@ -84,6 +84,7 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 // SENSOR AM2315 ---------------------------------------------------------------
 // SDA @ PIN A4 // SCL @ PIN A5
 Adafruit_AM2315 am2315;
+const int SENSOR_5V_PIN = 12;
 
 // FUNCTIONS *******************************************************************
 float limit(float value, float min, float max) {
@@ -331,8 +332,9 @@ void setup() {
   pinMode(FOGGER_RELAY_PIN, OUTPUT);
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
+  pinMode(SENSOR_5V_PIN,OUTPUT);
+  digitalWrite(SENSOR_5V_PIN,HIGH);
   operation_mode = standard;
-  fogger_on_delay.set_flag_activated(true);
   Serial.begin(9600);
   Serial.println("EXIT SETUP");
 }
@@ -353,5 +355,5 @@ void loop() {
 
   switch_ultrasonic_fogger();
 
-  print_serial_plot_chart();
+  // print_serial_plot_chart();
 }
