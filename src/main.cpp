@@ -53,6 +53,7 @@ Insomnia log_delay;
 Insomnia serial_print_delay;
 Insomnia fogger_on_delay;
 Insomnia fogger_off_delay;
+Insomnia sensor_reset_delay;
 
 // EEPROM STORAGE --------------------------------------------------------------
 EEPROM_Counter eeprom_storage;
@@ -84,7 +85,7 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 // SENSOR AM2315 ---------------------------------------------------------------
 // SDA @ PIN A4 // SCL @ PIN A5
 Adafruit_AM2315 am2315;
-const int SENSOR_5V_PIN = 12;
+const int SENSOR_GND_PIN = 12;
 
 // FUNCTIONS *******************************************************************
 float limit(float value, float min, float max) {
@@ -153,7 +154,7 @@ void monitor_changed_values_humidity_display() {
   if (encoder_prev_position - current_position >= encoder_klicks) {
     display_refreshed = false;
     encoder_prev_position = current_position;
-       if (humidity_setpoint > 99.001) { // X.001 because of double unprecision
+    if (humidity_setpoint > 99.001) { // X.001 because of double unprecision
       humidity_setpoint -= 0.1;
     } else {
       humidity_setpoint -= 1;
@@ -298,6 +299,14 @@ void switch_ultrasonic_fogger() {
   digitalWrite(FOGGER_RELAY_PIN, fogger_fogging);
 }
 
+void reset_sensor() {
+  if (sensor_reset_delay.delay_time_is_up(10000)) {
+    digitalWrite(SENSOR_GND_PIN, HIGH);
+    delay(1000);
+    digitalWrite(SENSOR_GND_PIN, LOW);
+  }
+}
+
 void print_serial_plot_chart() {
   if (serial_print_delay.delay_time_is_up(7000)) {
     Serial.print(-101);
@@ -332,8 +341,8 @@ void setup() {
   pinMode(FOGGER_RELAY_PIN, OUTPUT);
   pinMode(ENCODER_5V_PIN, OUTPUT);
   digitalWrite(ENCODER_5V_PIN, HIGH);
-  pinMode(SENSOR_5V_PIN,OUTPUT);
-  digitalWrite(SENSOR_5V_PIN,HIGH);
+  pinMode(SENSOR_GND_PIN, OUTPUT);
+  digitalWrite(SENSOR_GND_PIN, LOW);
   operation_mode = standard;
   Serial.begin(9600);
   Serial.println("EXIT SETUP");
@@ -354,6 +363,8 @@ void loop() {
   calculate_pid_air_heater();
 
   switch_ultrasonic_fogger();
+
+  reset_sensor();
 
   // print_serial_plot_chart();
 }
