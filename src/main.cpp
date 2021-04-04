@@ -299,10 +299,10 @@ void switch_ultrasonic_fogger() {
   digitalWrite(FOGGER_RELAY_PIN, fogger_fogging);
 }
 
-void reset_sensor() {
-  if (sensor_reset_delay.delay_time_is_up(10000)) {
+void reset_sensor() { // Bugfix to test if reseting the sensor works
+  if (sensor_reset_delay.delay_time_is_up(1000L*60*60)) {
     digitalWrite(SENSOR_GND_PIN, HIGH);
-    delay(1000);
+    delay(2000);
     digitalWrite(SENSOR_GND_PIN, LOW);
   }
 }
